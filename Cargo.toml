@@ -1,0 +1,14 @@
+[package]
+name = "RayTracing_withGPU"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rand = "0"
+crossbeam = "0.8"
+image = "0.25"
+anyhow = "1.0.68"
+bytemuck = { version = "1.13.1", features = ["derive"] }
+pollster = { version = "0.3", features = ["macro"] }
+winit = "0.29.1"
+wgpu = "0.19.1" 
