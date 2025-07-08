@@ -2,14 +2,17 @@
 use {
     anyhow::{Context, Result},
     winit::{
-        event::{Event, WindowEvent},
+        event::{DeviceEvent, Event, MouseScrollDelta, WindowEvent,ElementState},       
         event_loop::{ControlFlow, EventLoop},
         window::{Window, WindowBuilder},
     },
     wgpu,
 };
-pub mod render;
+use crate::{algebra::Vec3, camera::Camera};
 
+pub mod render;
+pub mod algebra;
+pub mod camera;
 const WIDTH: u32 = 800;
 const HEIGHT: u32 = 600;
 
@@ -43,17 +46,18 @@ impl AppState {
         }
     }
 
-    fn render(&mut self, surface: &wgpu::Surface) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self, surface: &wgpu::Surface, camera: &Camera) -> Result<(), wgpu::SurfaceError> {
         let output = surface.get_current_texture()?;
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        self.renderer.render_frame(&self.device, &self.queue, &view);
+        self.renderer.render_frame(&camera, &self.device, &self.queue, &view);
         output.present();
         Ok(())
     }
 }
+
 // wgpu::Device : connection to the GPU
 // wgpu::Queue : issue commands to the GPU
 // wgpu::Surface : present frames to the window.
@@ -109,6 +113,14 @@ async fn main() -> Result<()> {
 
     let (mut state, surface) = AppState::new(&window).await?;
 
+    let mut mouse_button_pressed = false;
+    let mut last_mouse_pos: Option<winit::dpi::PhysicalPosition<f64>> = None; 
+
+    let mut camera = Camera::look_at(
+        Vec3::new(0., 0.75, 1.),
+        Vec3::new(0., -0.5, -1.),
+        Vec3::new(0., 1., 0.),
+    );
     event_loop.run(|event, control_handle| {
         match event {
             Event::WindowEvent {
@@ -120,7 +132,7 @@ async fn main() -> Result<()> {
                     state.resize(&surface, *physical_size);
                 }
                 WindowEvent::RedrawRequested => {
-                    match state.render(&surface) {
+                    match state.render(&surface, &camera) {
                         Ok(_) => {}
                         // 重新配置surface如果过时
                         Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
@@ -134,16 +146,80 @@ async fn main() -> Result<()> {
                         // 其他错误
                         Err(e) => eprintln!("{:?}", e),
                     }
+                    window.request_redraw();
+                }
+                // 添加鼠标按钮处理
+                WindowEvent::MouseInput { state, button, .. } => {
+                    if *button == winit::event::MouseButton::Left {
+                        mouse_button_pressed = *state == ElementState::Pressed;
+                        // if mouse_button_pressed {
+                        //     println!("鼠标按钮按下");
+                        // } else {
+                        //     println!("鼠标按钮释放");
+                        //     last_mouse_pos = None;  // 重置鼠标位置
+                        // }
+                        if !mouse_button_pressed{
+                            last_mouse_pos = None;
+                        }
+                    }
+                }
+                // 添加鼠标移动处理
+                WindowEvent::CursorMoved { position, .. } => {
+                    if mouse_button_pressed {
+                        if let Some(last_pos) = last_mouse_pos {
+                            let dx = position.x - last_pos.x;
+                            let dy = position.y - last_pos.y;
+                            
+                            // println!("=== 鼠标移动 ===");
+                            // println!("当前位置: ({}, {})", position.x, position.y);
+                            // println!("上次位置: ({}, {})", last_pos.x, last_pos.y);
+                            // println!("增量: dx={}, dy={}", dx, dy);
+                            
+                            let sensitivity = 0.01;
+                            let du = dx as f32 * sensitivity;
+                            let dv = dy as f32 * (-sensitivity);  // 翻转Y轴
+                            
+                            // println!("计算的du={}, dv={}", du, dv);
+                            
+                            camera.pan(du, dv);
+                            state.renderer.reset_samples();
+                        }
+                        last_mouse_pos = Some(*position);
+                    }
                 }
                 _ => {}
             },
-            Event::AboutToWait => {
-                // RedrawRequested 只会在手动请求时触发
-                // 除非用户请求重绘
-                window.request_redraw();
-            }
-            _ => {}
+            Event::DeviceEvent { event, .. } => match event {
+                DeviceEvent::MouseWheel { delta } => {
+                    let delta = match delta {
+                        MouseScrollDelta::PixelDelta(delta) => 0.001 * delta.y as f32,
+                        MouseScrollDelta::LineDelta(_, y) => y * 0.1,
+                    };
+                    camera.zoom(delta);
+                    state.renderer.reset_samples();
+                }
+                // DeviceEvent::MouseMotion { delta: (dx, dy) } => {
+                //     if mouse_button_pressed {
+                //         camera.pan(dx as f32 * 0.00001, dy as f32 * (-0.00001));
+                //         state.renderer.reset_samples();
+                //     }
+                // }
+                // DeviceEvent::Button { state, .. } => {
+                //     // NOTE: If multiple mouse buttons are pressed, releasing any of them will
+                //     // set this to false.
+                //     mouse_button_pressed = state == ElementState::Pressed;
+                // }
+                _ => (),
+            },
+            // Event::AboutToWait => {
+            //     // RedrawRequested 只会在手动请求时触发
+            //     // 除非用户请求重绘
+            //     window.request_redraw();
+            // }
+            _ => {},
         }
+        // window.request_redraw();
+
     })?;
     
     Ok(())

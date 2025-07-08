@@ -1,13 +1,16 @@
 // render.rs
+use crate::camera::{Camera, CameraUniforms};
 use crate::wgpu;
 use bytemuck::{Pod, Zeroable};
 
 #[derive(Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 pub struct Uniforms {
+    camera: CameraUniforms,
     width: u32,
     height: u32,
     frame_count: u32,
+    _pad: u32,
 }
 
 pub struct PathTracer {
@@ -34,10 +37,13 @@ impl PathTracer {
         let (display_pipeline, display_layout) =
             create_display_pipeline(device, &shader_module, surface_format);
 
+        // Initialize the uniform buffer.
         let uniforms = Uniforms {
+            camera: CameraUniforms::zeroed(),
             width,
             height,
             frame_count: 0,
+            _pad: 0,
         };
 
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -69,12 +75,18 @@ impl PathTracer {
         }
     }
 
+    pub fn reset_samples(&mut self) {
+        self.uniforms.frame_count = 0;
+    }
+
     pub fn render_frame(
         &mut self,
+        camera: &Camera,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         target: &wgpu::TextureView,
     ) {
+        self.uniforms.camera = *camera.uniforms();
         *&mut self.uniforms.frame_count += 1;
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&self.uniforms));
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
