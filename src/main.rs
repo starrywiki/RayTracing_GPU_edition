@@ -211,28 +211,15 @@ async fn main() -> Result<()> {
                     camera.zoom(delta);
                     state.renderer.reset_samples();
                 }
-                // DeviceEvent::MouseMotion { delta: (dx, dy) } => {
-                //     if mouse_button_pressed {
-                //         camera.pan(dx as f32 * 0.00001, dy as f32 * (-0.00001));
-                //         state.renderer.reset_samples();
-                //     }
-                // }
-                // DeviceEvent::Button { state, .. } => {
-                //     // NOTE: If multiple mouse buttons are pressed, releasing any of them will
-                //     // set this to false.
-                //     mouse_button_pressed = state == ElementState::Pressed;
-                // }
                 _ => (),
             },
-            // Event::AboutToWait => {
-            //     // RedrawRequested 只会在手动请求时触发
-            //     // 除非用户请求重绘
-            //     window.request_redraw();
-            // }
+            Event::AboutToWait => {
+                // RedrawRequested 只会在手动请求时触发
+                // 除非用户请求重绘
+                window.request_redraw();
+            }
             _ => {},
         }
-        // window.request_redraw();
-
     })?;
     
     Ok(())
