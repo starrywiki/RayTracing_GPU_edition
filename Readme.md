@@ -1,5 +1,5 @@
 # Readme（Week3 Report）
-
+[仓库地址](https://github.com/starrywiki/RayTracing_GPU_edition)
 ## 概述
 本周我计划实现一个基于 WGPU 的 GPU 实时渲染器，主要参考《Ray Tracing — GPU Edition》一书，将《Ray Tracing in One Weekend》的内容迁移并实现为 GPU 版本。
 
