@@ -115,10 +115,19 @@ async fn main() -> Result<()> {
 
     let mut mouse_button_pressed = false;
     let mut last_mouse_pos: Option<winit::dpi::PhysicalPosition<f64>> = None; 
+    let mut left_mouse_button_pressed = false;
+    let mut right_mouse_button_pressed = false;
 
+    // let mut camera = Camera::with_spherical_coords(
+    //     Vec3::new(0., 0., -1.),
+    //     Vec3::new(0., 1., 0.),
+    //     2.,
+    //     0.,
+    //     0.,
+    // );
     let mut camera = Camera::look_at(
-        Vec3::new(0., 0.75, 1.),
-        Vec3::new(0., -0.5, -1.),
+        Vec3::new(0., 0.55, 1.5),
+        Vec3::new(0., 0.5, 0.),
         Vec3::new(0., 1., 0.),
     );
     event_loop.run(|event, control_handle| {
@@ -150,18 +159,16 @@ async fn main() -> Result<()> {
                 }
                 // 添加鼠标按钮处理
                 WindowEvent::MouseInput { state, button, .. } => {
-                    if *button == winit::event::MouseButton::Left {
-                        mouse_button_pressed = *state == ElementState::Pressed;
-                        // if mouse_button_pressed {
-                        //     println!("鼠标按钮按下");
-                        // } else {
-                        //     println!("鼠标按钮释放");
-                        //     last_mouse_pos = None;  // 重置鼠标位置
-                        // }
-                        if !mouse_button_pressed{
-                            last_mouse_pos = None;
-                        }
+                    mouse_button_pressed = *state == ElementState::Pressed;
+                    match button {
+                        winit::event::MouseButton::Left => left_mouse_button_pressed = mouse_button_pressed,
+                        winit::event::MouseButton::Right => right_mouse_button_pressed = mouse_button_pressed,
+                        _ => (),
                     }
+                    if !mouse_button_pressed{
+                        last_mouse_pos = None;
+                    }
+                    
                 }
                 // 添加鼠标移动处理
                 WindowEvent::CursorMoved { position, .. } => {
@@ -179,10 +186,16 @@ async fn main() -> Result<()> {
                             let du = dx as f32 * sensitivity;
                             let dv = dy as f32 * (-sensitivity);  // 翻转Y轴
                             
-                            // println!("计算的du={}, dv={}", du, dv);
+                            // println!("left={}, right={}", left_mouse_button_pressed, right_mouse_button_pressed);
                             
-                            camera.pan(du, dv);
-                            state.renderer.reset_samples();
+                            if left_mouse_button_pressed {
+                                camera.orbit(du,dv);
+                                state.renderer.reset_samples();
+                            }
+                            if right_mouse_button_pressed {
+                                camera.pan(du,dv);
+                                state.renderer.reset_samples();
+                            }
                         }
                         last_mouse_pos = Some(*position);
                     }

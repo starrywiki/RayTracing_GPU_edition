@@ -42,7 +42,7 @@ DeviceEvent::MouseWheel { delta } => {
     state.renderer.reset_samples();
 }
 ```
-需要注意的是鼠标相关功能按键处理不能完全照着书上的写（我将DeviceEvent::MouseMotion改成了WindowEvent::CursorMoved，将DeviceEvent::Button改成了WindowEvent::MouseInput）因为我发现如果用MouseMotion的话不能正确捕捉我的鼠标移动距离，导致无论往哪个方向图像都只往一个方向移动。改了后运行良好，具体可见附件视频。
+需要注意的是鼠标相关功能按键处理不能完全照着书上的写（我将DeviceEvent::MouseMotion改成了WindowEvent::CursorMoved，将DeviceEvent::Button改成了WindowEvent::MouseInput）因为我发现如果用MouseMotion的话不能正确捕捉我的鼠标移动距离，导致无论往哪个方向图像都只往一个方向移动。改了后运行良好，具体可见附件视频/我的github中videos文件夹中的[004.mp4](https://github.com/starrywiki/RayTracing_GPU_edition/blob/master/videos/004.mp4) 
 
 <video controls width="100%">
   <source src="./videos/004-1.mp4" type="video/mp4">

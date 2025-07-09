@@ -1,13 +1,28 @@
 //shaders.wgsl
-const OBJECT_COUNT: u32 = 2;
+const OBJECT_COUNT: u32 = 4;
 const FLT_MAX: f32 = 3.40282346638528859812e+38;
 const MAX_PATH_LENGTH: u32 = 13u;
 const EPSILON: f32 = 1e-3;
+const TWO_PI: f32 = 6.2831853;
+
+
+alias Materials = array<Material, OBJECT_COUNT>;
+var<private> materials: Materials = Materials(
+  Material(/*color*/ vec3(0.7, 0.5, 0.5), /*specular_or_ior*/1.),
+  Material(/*color*/ vec3(0.5, 0.5, 0.9), /*specular_or_ior*/0.),
+  Material(/*color*/ vec3(0.7, 0.9, 0.2), /*specular_or_ior*/0.),
+  Material(/*color*/ vec3(1.), /*specular_or_ior*/-1.0/1.5),
+);
+
 
 alias Scene = array<Sphere, OBJECT_COUNT>;
 var<private> scene: Scene = Scene(
-  Sphere(/*center*/ vec3(0., 0., -1.), /*radius*/ 0.5, /*color*/ vec3(0.5, 0.4, 0.)),
-  Sphere(/*center*/ vec3(0., -100.5, -1.), /*radius*/ 100., /*color*/ vec3(0.7, 0.4, 0.6)),
+  Sphere(/*center*/ vec3(-1.1, 0.5, 0.), /*radius*/ 0.5, /*material_index*/ 0),
+  Sphere(/*center*/ vec3(0., 0.5, 0.),   /*radius*/ 0.5, /*material_index*/ 1),
+  Sphere(/*center*/ vec3(1.1, 0.5, 0.),  /*radius*/ 0.5, /*material_index*/ 3),
+
+  // Ground
+  Sphere(/*center*/ vec3(0., -2e2 - EPSILON, 0.), /*radius*/ 2e2, /*material_index*/ 2),
 );
 
 alias TriangleVertices = array<vec2f, 6>;
@@ -47,10 +62,34 @@ struct Scatter {
   ray: Ray,
 }
 
-fn scatter(input_ray: Ray, hit: Intersection) -> Scatter {
-  let scattered = reflect(input_ray.direction, hit.normal);
+fn sample_lambertian(normal: vec3f) -> vec3f {
+  return normal + sample_sphere() * (1. - EPSILON);
+}
+
+fn scatter(input_ray: Ray, hit: Intersection, material: Material) -> Scatter {
+  let incident = normalize(input_ray.direction);
+  let incident_dot_normal = dot(incident, hit.normal);
+  let is_front_face = incident_dot_normal < 0.;
+  let N = select(-hit.normal, hit.normal, is_front_face);
+  let cos_theta = abs(incident_dot_normal);
+
+  // `ior`, `ref_ratio`, and `cannot_refract` only have meaning if the material is transmissive.
+  let is_transmissive = material.specular_or_ior < 0.;
+  let is_specular = material.specular_or_ior > 0.;
+  let ior = abs(material.specular_or_ior);
+  let ref_ratio = select(ior, 1. / ior, is_front_face);
+  let cannot_refract = ref_ratio * ref_ratio * (1.0 - cos_theta * cos_theta) > 1.;
+
+  var scattered: vec3f;
+  if is_specular || (is_transmissive && cannot_refract) {
+    scattered = reflect(incident, N);
+  } else if is_transmissive {
+    scattered = refract(incident, N, ref_ratio);
+  } else {
+    scattered = sample_lambertian(N);
+  }
   let output_ray = Ray(point_on_ray(input_ray, hit.t), scattered);
-  let attenuation = hit.color;
+  let attenuation = material.color;
   return Scatter(attenuation, output_ray);
 }
 
@@ -104,14 +143,34 @@ fn rand_f32() -> f32 {
   return bitcast<f32>(0x3f800000u | (xorshift32() >> 9u)) - 1.;
 }
 
+// Uniformly sample a unit sphere centered at the origin
+fn sample_sphere() -> vec3f {
+  let r0 = rand_f32();
+  let r1 = rand_f32();
+
+  // Map r0 to [-1, 1]
+  let y = 1. - 2. * r0;
+
+  // Compute the projected radius on the xz-plane using Pythagorean theorem
+  let xz_r = sqrt(1. - y * y);
+
+  let phi = TWO_PI * r1;
+  return vec3(xz_r * cos(phi), y, xz_r * sin(phi));
+}
+
+struct Material{
+  color: vec3f,
+  specular_or_ior: f32,
+}
+
 struct Intersection {
   normal: vec3f,
   t: f32,
-  color: vec3f,
+  material_index: u32,
 }
 
 fn no_intersection() -> Intersection {
-  return Intersection(vec3(0.), -1., vec3(0.));
+  return Intersection(vec3(0.), -1., 0);
 }
 
 fn is_intersection_valid(hit: Intersection) -> bool {
@@ -121,7 +180,7 @@ fn is_intersection_valid(hit: Intersection) -> bool {
 struct Sphere {
   center: vec3f,
   radius: f32,
-  color: vec3f,
+  material_index: u32,
 }
 
 fn intersect_sphere(ray: Ray, sphere: Sphere) -> Intersection {
@@ -147,7 +206,7 @@ fn intersect_sphere(ray: Ray, sphere: Sphere) -> Intersection {
 
   let p = point_on_ray(ray, t);
   let N = (p - sphere.center) / sphere.radius;
-  return Intersection(N, t, sphere.color);
+  return Intersection(N, t, sphere.material_index);
 }
 
 fn intersect_scene(ray: Ray) -> Intersection {
@@ -181,10 +240,7 @@ fn sky_color(ray: Ray) -> vec3f {
   // Normalize the viewport coordinates.
   // Offset and normalize the viewport coordinates of the ray.
   let offset = vec2(rand_f32() - 0.5, rand_f32() - 0.5);
-  // let offset = vec2(
-  //     f32(uniforms.frame_count % 4) * 0.25 - 0.5,
-  //     f32((uniforms.frame_count % 16) / 4) * 0.25 - 0.5
-  // );
+  
   var uv = (pos.xy + offset) / vec2f(f32(uniforms.width - 1u), f32(uniforms.height - 1u));
 
   // Map `uv` from y-down (normalized) viewport coordinates to camera coordinates.
@@ -207,7 +263,8 @@ fn sky_color(ray: Ray) -> vec3f {
       break;
     }
 
-    let scattered = scatter(ray, hit);
+    let material = materials[hit.material_index];
+    let scattered = scatter(ray, hit, material);
     throughput *= scattered.attenuation;
     ray = scattered.ray;
     path_length += 1u;
