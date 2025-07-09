@@ -5,7 +5,7 @@
 
 相较于原书中基于 CPU 的实现，WGPU 的开发模式要求我们将许多关键结构（如 Ray、Sphere 等）定义在 WGSL 着色器语言中。此外，更关键的区别在于：WGPU 涉及 CPU 与 GPU 之间的资源交互与同步，这对资源绑定（Bind Groups）、Uniform/Storage Buffer 的布局等提出了新的要求。因此，本周的主要目标是完成场景数据结构的迁移、光线路径追踪的基本流程，以及 CPU–GPU 通信框架的初步搭建。
 ## 成果展示
-我减少了球的总数目实现了week1_finalscene的场景 具体可见[视频]()
+我减少了球的总数目实现了week1_finalscene的场景 具体可见[视频](https://github.com/starrywiki/RayTracing_GPU_edition/blob/master/week1_scene.mp4)
 同时展现我在实现Raytraing GPU Edition这本书的一些效果图
  
 ## Challenges & Solutions
